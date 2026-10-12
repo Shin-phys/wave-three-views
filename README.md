@@ -22,4 +22,4 @@
     └── common/        concept.md / platform-constraints.md / spec-conventions.md
 ```
 
-実装を始めたら、ソースと公開用ファイルはリポジトリ直下に置く（構成は WAVE-Q-01 で決める）。
+実装を始めたら、`src/` を編集し、`build.py` で直下に単一の `index.html` を生成する。GitHub Pages でリポジトリ直下を公開する（WAVE-N-08）。
