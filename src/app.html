@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#12151b">
+<title>波の3つの見方</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+<header id="hdr">
+  <div class="brand">波の3つの見方</div>
+  <div class="srcname mut small" id="srcName">まだ何も開いていません</div>
+  <button class="btn sm" id="btnPanel" aria-expanded="true" title="設定欄を畳む／開く">設定欄を畳む</button>
+</header>
+
+<div class="rotate-note hidden" id="rotateNote">スマホを横向きにすると、動画とグラフを大きく並べられます。</div>
+
+<main id="main">
+
+  <!-- ===== 左：映像とグラフ ===== -->
+  <section id="stage" aria-label="動画とグラフ">
+    <div id="empty" class="empty">
+      <p>右の「開く」から、動画・写真・サンプルを選んでください。</p>
+    </div>
+
+    <div id="viewRow" class="viewrow hidden">
+      <div class="pane" id="vidPane">
+        <div class="panehead"><span id="vidTitle">y-x図（動画の1コマ）</span><span class="mut small" id="vidInfo"></span></div>
+        <div class="canvwrap" id="vidWrap">
+          <canvas id="cvVid"></canvas>
+          <canvas id="cvVidOv" class="ov"></canvas>
+        </div>
+      </div>
+      <div class="pane" id="ytPane">
+        <div class="panehead"><span>y-t図</span><span class="mut small" id="ytInfo"></span></div>
+        <div class="canvwrap scrollx" id="ytWrap">
+          <canvas id="cvYt"></canvas>
+          <canvas id="cvYtOv" class="ov"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div id="transport" class="transport hidden">
+      <button class="btn icon" id="btnPrev" title="1コマもどる（←）" aria-label="1コマもどる">◀</button>
+      <button class="btn icon primary" id="btnPlay" title="再生／停止（スペース）" aria-label="再生">▶</button>
+      <button class="btn icon" id="btnNext" title="1コマすすむ（→）" aria-label="1コマすすむ">▶▏</button>
+      <input type="range" id="rngT" min="0" max="0" value="0" step="1" aria-label="時刻">
+      <span class="tlabel" id="tLabel">—</span>
+      <label class="small">速さ
+        <select id="selRate"></select>
+      </label>
+    </div>
+    <div id="hint" class="hint hidden"></div>
+  </section>
+
+  <!-- ===== 右：設定 ===== -->
+  <aside id="panel" aria-label="設定">
+    <nav class="tabs" id="tabs" role="tablist">
+      <button data-tab="open" class="on" role="tab">開く</button>
+      <button data-tab="guide" role="tab">y-t図をつくる</button>
+      <button data-tab="tools" role="tab">調べる</button>
+      <button data-tab="flip" role="tab">ぱらぱら漫画</button>
+      <button data-tab="sheet" role="tab">用紙</button>
+    </nav>
+
+    <!-- 開く -->
+    <div class="tabpane" data-pane="open">
+      <h3>動画</h3>
+      <label class="btn wide filebtn">動画ファイルを選ぶ
+        <input type="file" id="fileVideo" accept="video/*" hidden>
+      </label>
+      <p class="mut small">三脚で固定し、暗い背景で、媒質に色シールをはって撮ると見やすくなります。iPhone は「カメラ」の設定で「互換性優先」にして撮ってください。</p>
+
+      <div id="capBox" class="subcard hidden">
+        <video id="srcVideo" playsinline muted preload="auto"></video>
+        <div class="row small"><span class="grow">解析する区間</span><span id="rangeLabel" class="mut"></span></div>
+        <div class="row"><span class="small lbl">はじめ</span><input type="range" id="rngStart" min="0" max="1000" value="0"></div>
+        <div class="row"><span class="small lbl">おわり</span><input type="range" id="rngEnd" min="0" max="1000" value="1000"></div>
+        <div class="row small">
+          <label>取り込む大きさ
+            <select id="selCapW"><option value="320" selected>標準（横320）</option><option value="480">細かく（横480）</option></select>
+          </label>
+        </div>
+        <p class="mut small" id="capLimit"></p>
+        <button class="btn primary wide" id="btnCapture">この区間を取り込む</button>
+      </div>
+
+      <h3>写真（ぱらぱら漫画）</h3>
+      <label class="small">用紙の種類
+        <select id="selFlipPreset"></select>
+      </label>
+      <label class="btn wide filebtn">作図した用紙の写真を選ぶ（何枚でも）
+        <input type="file" id="filePhotos" accept="image/*" multiple hidden>
+      </label>
+
+      <h3>サンプル</h3>
+      <div class="samplelist" id="sampleList"></div>
+    </div>
+
+    <!-- y-t図をつくる -->
+    <div class="tabpane hidden" data-pane="guide">
+      <ol class="steps" id="guideSteps">
+        <li data-step="1">1か所を選ぶ</li>
+        <li data-step="2">点を打って続きを予想する</li>
+        <li data-step="3">記録する</li>
+        <li data-step="4">グラフから動画へ</li>
+      </ol>
+      <div class="guidebody" id="guideBody"></div>
+      <div class="row guidenav">
+        <button class="btn" id="gBack">もどる</button>
+        <span class="grow"></span>
+        <button class="btn primary" id="gNext">次へ</button>
+      </div>
+    </div>
+
+    <!-- 調べる -->
+    <div class="tabpane hidden" data-pane="tools">
+      <h3>位置線</h3>
+      <p class="mut small">動画をタップすると縦の線が置かれます（2本まで）。線はドラッグで動かせます。</p>
+      <div class="row">
+        <button class="btn sm" id="btnClearLines">線をすべて消す</button>
+      </div>
+      <div class="row"><span class="small lbl">線の幅</span><input type="range" id="rngBand" min="1" max="15" value="3"><span class="small" id="bandLabel">3</span></div>
+
+      <h3>y-t図の横軸</h3>
+      <div class="row"><span class="small lbl">1コマの幅</span><input type="range" id="rngPpf" min="1" max="120" value="2" step="1"><span class="small" id="ppfLabel">2</span></div>
+      <div class="row small">
+        <label>波の速さ <input type="number" id="inpV" min="0" step="0.01" class="num"> m/s</label>
+        <button class="btn sm" id="btnMatch">y-x図と同じ縮尺にする</button>
+      </div>
+      <p class="mut small" id="matchHint"></p>
+
+      <h3>長さの目盛り</h3>
+      <div class="row small">
+        <button class="btn sm" id="btnScale">2点をタップして長さを決める</button>
+        <span id="scaleLabel" class="mut">未設定</span>
+      </div>
+
+      <h3>カメラの傾き</h3>
+      <div class="row small">
+        <button class="btn sm" id="btnTilt">止まっている媒質の2点をタップ</button>
+        <span id="tiltLabel" class="mut">0°</span>
+      </div>
+
+      <h3>時間</h3>
+      <div class="row small">
+        <label>1秒あたりのコマ数 <input type="number" id="inpFps" min="1" max="1000" step="0.01" class="num"></label>
+        <span class="mut" id="fpsNote"></span>
+      </div>
+      <div class="row small">
+        <label>撮影倍率
+          <select id="selSlow">
+            <option value="1" selected>等倍</option><option value="0.5">1/2 スロー</option><option value="0.25">1/4 スロー</option>
+            <option value="0.125">1/8 スロー</option><option value="0.0625">1/16 スロー</option>
+          </select>
+        </label>
+      </div>
+
+      <h3>保存</h3>
+      <button class="btn sm" id="btnSaveYt">y-t図を画像で保存</button>
+    </div>
+
+    <!-- ぱらぱら漫画 -->
+    <div class="tabpane hidden" data-pane="flip">
+      <p class="mut small" id="flipEmpty">「開く」で用紙の写真を選ぶか、サンプルの「ぱらぱら漫画の見本」を開いてください。</p>
+      <div id="flipCtl" class="hidden">
+        <h3>見え方</h3>
+        <div class="row small"><label><input type="checkbox" id="chkRed"> 赤い線だけを表示</label></div>
+        <div class="row small"><label><input type="checkbox" id="chkInc" checked> 印刷された波も表示</label></div>
+        <div class="row small"><label><input type="checkbox" id="chkGhost"> 全コマを重ねる</label></div>
+        <div class="row small"><label><input type="checkbox" id="chkTheory"> 答え合わせの線を重ねる</label></div>
+        <button class="btn sm" id="btnSaveGhost">重ねた画像を保存</button>
+
+        <h3>コマ</h3>
+        <div class="thumbs" id="thumbs"></div>
+        <label class="btn sm filebtn">写真を追加する
+          <input type="file" id="filePhotosAdd" accept="image/*" multiple hidden>
+        </label>
+
+        <details class="teacher">
+          <summary>教師用の設定</summary>
+          <div class="row small"><label><input type="checkbox" id="chkComplete"> 残りのコマを補う</label></div>
+          <p class="mut small">前半の4コマ（t = 0〜3T/8）がそろっているときに使えます。</p>
+        </details>
+      </div>
+    </div>
+
+    <!-- 用紙 -->
+    <div class="tabpane hidden" data-pane="sheet">
+      <p class="small">ぱらぱら漫画の用紙を A4 横で印刷します。1枚に1コマぶんです。</p>
+      <label class="small">用紙の種類
+        <select id="selSheetPreset"></select>
+      </label>
+      <div class="row small"><label><input type="checkbox" id="chkCover" checked> 教師用の表紙を付ける</label></div>
+      <div class="sheetprev" id="sheetPrev"></div>
+      <button class="btn primary wide" id="btnPrint">印刷する</button>
+      <p class="mut small">印刷の設定で「倍率 100%」「余白なし（または最小）」を選んでください。PDF に保存もできます。</p>
+    </div>
+  </aside>
+</main>
+
+<!-- 手動で四隅を指定 -->
+<div class="modal hidden" id="cornerModal" role="dialog" aria-modal="true" aria-labelledby="cornerTitle">
+  <div class="modalbox">
+    <h2 id="cornerTitle">四隅を指定する</h2>
+    <p class="small" id="cornerMsg">黒い四角の外側の角を、左上 → 右上 → 右下 → 左下 の順にタップしてください。</p>
+    <div class="cornerwrap"><canvas id="cvCorner"></canvas></div>
+    <div class="row">
+      <label class="small">コマ番号 <select id="selCornerFrame"></select></label>
+      <span class="grow"></span>
+      <button class="btn" id="cornerRedo">やり直す</button>
+      <button class="btn" id="cornerSkip">この写真を使わない</button>
+      <button class="btn primary" id="cornerOk" disabled>決定</button>
+    </div>
+  </div>
+</div>
+
+<div id="printArea" aria-hidden="true"></div>
+
+</div>
+<!-- build: js/*.js -->
+<script src="js/00-core.js"></script>
+<!-- /build -->
+</body>
+</html>
