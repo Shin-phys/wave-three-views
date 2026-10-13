@@ -301,7 +301,8 @@ function rebuild(isNew){
   if(isNew || !A.src || A.src.kind!=='flip'){
     var cur = (A.src && A.src.kind==='flip') ? A.cur : 0, lines=(A.src&&A.src.kind==='flip')?A.lines.slice():[];
     A.setSource({kind:'flip', name:'ぱらぱら漫画（'+p.name+'）', W:d.w, H:d.h, frames:frames, times:null,
-      fps:4, slow:1, pxPerM:PPM*1000, light:true, unit:'T', perPeriod:p.n, preset:p.id});
+      fps:4, slow:1, pxPerM:PPM*1000, light:true, unit:'T', perPeriod:p.n, preset:p.id,
+      colPx:p.colMM*PPM, rowPx:p.rowMM*PPM, axisPx:(A.sheet.AXIS_Y-d.a.y0)*PPM, rows:2*p.amp+1});
     // y-t図が1周期ぶん横に収まるように、1コマの幅を決める
     A.ppf=Math.max(16, Math.floor((A.$('#ytPane').clientWidth-4)/(A.view.s*p.n)));
     A.view.layout(); if(A.tools) A.tools.refresh();

@@ -1,7 +1,7 @@
 /* =========================================================
    「y-t図をつくる」ガイド（02-yt-animation.md）
    画面の順番：1か所を選ぶ（段階1）→ 点を打って予想する（段階4）
-              → 記録する（段階2・3を1本のアニメーションに）→ グラフから動画へ（段階5）
+              → 記録する（段階2・3を1本のアニメーションに）→ y-t図からy-x図へ（段階5）
    文言は操作の指示だけにし、結論は言わない（WAVE-N-05）。
    ========================================================= */
 (function(A){
@@ -34,11 +34,17 @@ var guideTool = {
   kind:'guide',
   vidDown:function(p){
     if(G.step!==2 || !A.lines.length) return false;
-    G.dots[A.cur]=p.y;
+    // 近くの目印（玉・赤い線）に吸い付ける
+    G.dots[A.cur]=A.yt.snapY(A.cur, A.lines[0].x, p.y, 36/A.view.s);
     var adv=parseInt((A.$('#gAdv')||{}).value||'1',10);
     updateCounts();
-    A.goto(A.cur+adv);
-    A.yt.follow();
+    if(A.cur>=A.N()-1){
+      A.toStart();
+      A.toast('最後のコマまで打ちました。最初のコマにもどります');
+    } else {
+      A.goto(Math.min(A.N()-1, A.cur+adv));
+      A.yt.follow();
+    }
     A.yt.renderOv();
   },
   ytDown:function(p){
@@ -90,7 +96,11 @@ function drawYtOv(ctx,Y){
     ctx.beginPath(); ctx.arc(x,y,4.5,0,Math.PI*2); ctx.fill(); ctx.stroke();
   });
   // ペンの跡とガイド線（段階2）
-  if(G.trace.length>1){
+  if(G.trace.length && A.src.kind==='flip'){
+    // ぱらぱら漫画は点で記録する
+    ctx.fillStyle=PEN; ctx.strokeStyle='#1b2a44'; ctx.lineWidth=1.2;
+    G.trace.forEach(function(q){ if(q.y==null) return; ctx.beginPath(); ctx.arc(Y.f2c(q.f+0.5),Y.y2c(q.y),5,0,Math.PI*2); ctx.fill(); ctx.stroke(); });
+  } else if(G.trace.length>1){
     ctx.strokeStyle=A.src.light?'#1b2a44':'#ffffff'; ctx.lineWidth=2; ctx.globalAlpha=0.85; ctx.beginPath();
     var started=false;
     G.trace.forEach(function(q){
@@ -180,9 +190,10 @@ async function record(){
   finishRecord();
 }
 function finishRecord(){
-  G.anim=null; G.pen=null;
+  G.anim=null; G.pen=null; G.trace=[];
   A.ytReveal=null; A.yt.renderBase();
   G.recorded=true;
+  A.toStart();          // 1つの作業が終わったら最初のコマにもどる
   setNav();
 }
 function cancelAnim(){
@@ -217,7 +228,7 @@ function render(){
     body('<p>まず「開く」で、動画かサンプルを開いてください。</p>'); setNav(); return;
   }
   if(G.step===1){
-    body('<p>動画をタップして、調べたい場所に縦の線を置きましょう。線はドラッグで動かせます。</p>'+
+    body('<p>左の<b>y-x図</b>をタップして、調べたい場所に縦の線を置きましょう。線はドラッグで動かせます。</p>'+
       '<button class="btn" id="gDim"></button>');
     var b=A.$('#gDim');
     var lab=function(){ b.textContent = dimTarget? '全体を見る' : 'その場所だけを残す'; b.disabled=!A.lines.length; };
@@ -225,7 +236,9 @@ function render(){
     A.ytReveal = G.recorded?null:{upto:0};
   } else if(G.step===2){
     var flip=A.src.unit==='T';
-    body('<p>◀ ▶ でコマを送りながら、線の上で、媒質の点がある高さをタップしましょう。右のグラフに点が打たれます。</p>'+
+    var obj=flip?'赤い線':'媒質の点';
+    body('<p>◀ ▶ でコマを送りながら、線の上で'+obj+'がある高さを、左の<b>y-x図</b>でタップしましょう。右の<b>y-t図</b>に点が打たれます。最後のコマまで打つと、最初のコマにもどります。</p>'+
+      '<div class="row small"><label><input type="checkbox" id="gSnap"'+(A.snap?' checked':'')+'> 打った点を近くの'+(flip?'赤い線':'玉')+'に吸い付ける</label></div>'+
       '<div class="row small"><label>タップするたびに <select id="gAdv">'+
       [1,2,3,5,10].map(function(n){return '<option value="'+n+'"'+((flip?n===1:n===3)?' selected':'')+'>'+n+'</option>';}).join('')+
       '</select> コマ進める</label></div>'+
@@ -234,26 +247,27 @@ function render(){
       '<p class="mut small" id="gPredHint"></p>');
     A.$('#gPred').addEventListener('click',function(){
       G.predMode=!G.predMode; this.classList.toggle('on',G.predMode);
-      A.$('#gPredHint').textContent = G.predMode ? 'グラフの上を、左から右へなぞって描きます。' : '';
+      A.$('#gPredHint').textContent = G.predMode ? '右のy-t図の上を、左から右へなぞって描きます。' : '';
     });
+    A.$('#gSnap').addEventListener('change',function(){ A.snap=this.checked; A.$('#chkSnap').checked=A.snap; });
     A.$('#gClr').addEventListener('click',function(){ G.dots={}; G.pred=[]; updateCounts(); A.yt.renderOv(); A.view.renderOv(); });
     updateCounts();
     if(!G.recorded) A.ytReveal={upto:0};
   } else if(G.step===3){
-    body('<p>「記録をはじめる」を押すと、線の場所の動きが右のグラフに記録されていきます。</p>'+
+    body('<p>「記録をはじめる」を押すと、線の場所の動きが右の<b>y-t図</b>に記録されていきます。終わると最初のコマにもどります。</p>'+
       '<div class="row small"><label>速さ <select id="gSpeed"><option value="slow">ゆっくり</option><option value="normal" selected>ふつう</option><option value="fast">はやい</option></select></label></div>'+
       '<div class="row"><button class="btn primary" id="gRec">記録をはじめる</button><button class="btn sm" id="gSkip">最後までとばす</button></div>');
     A.$('#gRec').addEventListener('click',function(){ G.predMode=false; record(); });
     A.$('#gSkip').addEventListener('click',function(){ cancelAnim(); G.trace=[]; finishRecord(); });
     if(!G.recorded) A.ytReveal={upto:0};
   } else {
-    body('<p>グラフの上をタップすると、動画がその瞬間に移ります。グラフの山や谷をタップして、動画のどの場面か確かめましょう。</p>'+
+    body('<p>右の<b>y-t図</b>をタップすると、左の<b>y-x図</b>がその時刻のコマに切り替わります。y-t図の山や谷をタップして、y-x図ではどんな場面か確かめましょう。</p>'+
       '<button class="btn" id="gLine2">もう1か所に線を置いて比べる</button>'+
-      '<p class="mut small" id="gLine2Hint">2本目の線は色を変えて、同じグラフに重ねます。</p>');
+      '<p class="mut small" id="gLine2Hint">2本目の線は色を変えて、同じy-t図に重ねます。</p>');
     A.$('#gLine2').addEventListener('click',function(){
       A.maxLines=2; this.disabled=true;
       setDim(false);
-      A.$('#gLine2Hint').textContent='動画の別の場所をタップしてください。';
+      A.$('#gLine2Hint').textContent='左のy-x図の別の場所をタップしてください。';
     });
     A.ytReveal=null;
   }
@@ -265,6 +279,7 @@ G.go = function(step){
   cancelAnim();
   G.step=A.clamp(step,1,4);
   if(G.step!==2) G.predMode=false;
+  if(A.src) A.toStart();
   render();
 };
 

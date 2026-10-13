@@ -105,7 +105,7 @@ T.init = function(){
   A.$('#btnMatch').addEventListener('click',matchScale);
   A.$('#btnClearLines').addEventListener('click',function(){ A.lines=[]; A.emit('lines'); });
   A.$('#rngBand').addEventListener('input',function(){ A.band=parseInt(this.value,10); A.$('#bandLabel').textContent=A.band; A.emit('lines'); });
-  A.$('#rngPpf').addEventListener('input',function(){ A.ppf=parseInt(this.value,10); A.$('#ppfLabel').textContent=A.ppf; A.view.layout(); });
+  A.$('#rngPpf').addEventListener('input',function(){ if(A.src) A.src.ppfManual=true; A.ppf=parseInt(this.value,10); A.$('#ppfLabel').textContent=A.ppf; A.view.layout(); });
   A.$('#inpFps').addEventListener('change',function(){
     var s=A.src, v=parseFloat(this.value); if(!s||!(v>0)) return;
     s.fps=v; s.times=null; s.fpsAuto=false; T.refresh(); A.emit('frame'); A.yt.renderOv();
@@ -114,6 +114,7 @@ T.init = function(){
     var s=A.src; if(!s) return; s.slow=parseFloat(this.value)||1; A.emit('frame'); A.yt.renderOv();
   });
   A.$('#btnSaveYt').addEventListener('click',function(){ A.yt.save(); });
+  A.$('#chkSnap').addEventListener('change',function(){ A.snap=this.checked; var g=A.$('#gSnap'); if(g) g.checked=A.snap; });
   A.on('source',function(){ endTool(); A.$('#inpV').value=''; T.refresh(); });
   A.on('tab',function(t){ if(t!=='tools' && A.tool && (A.tool.kind==='scale'||A.tool.kind==='tilt')) endTool(); });
 };

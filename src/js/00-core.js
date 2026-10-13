@@ -47,6 +47,8 @@ A.ppf = 2;             // y-t図で1コマに割り当てる幅（元画像の�
 A.maxLines = 2;
 A.LINE_COLORS = ['#5aa9ff','#ffc24a'];
 A.LINE_RGB = [[90,169,255],[255,194,74]];
+A.LINE_DARK = ['#1d6fd6','#c07f00'];   // 白い背景の上で使う濃い色
+A.snap = true;         // 線と点を目印に吸い付ける
 
 /* src の形
    { kind:'video'|'sample'|'flip', name, W, H,

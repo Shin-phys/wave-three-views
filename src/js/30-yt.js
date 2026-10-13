@@ -63,6 +63,7 @@ Y.renderBase = function(){
   var wrapW=A.$('#ytPane').clientWidth;
   wrap.style.height=A.view.dispH+'px';
 
+  if(s.kind==='flip'){ renderDots(w,H,N); return; }
   var img=ctx.createImageData(w,H), D=img.data;
   var light=s.light, bg=light?255:10;
   for(var i=0;i<D.length;i+=4){ D[i]=bg; D[i+1]=bg; D[i+2]=light?255:14; D[i+3]=255; }
@@ -90,6 +91,95 @@ Y.renderBase = function(){
   ctx.putImageData(img,0,0);
   A.$('#ytInfo').textContent = A.lines.length ? '' : '左の図をタップして線を置くと、ここに記録されます';
   Y.renderOv();
+};
+
+/* ぱらぱら漫画：コマごとに、線の場所の赤い線の高さを点で打つ（WAVE-F-25） */
+function renderDots(w,H,N){
+  var s=A.src, sc=A.view.s;
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,H);
+  if(s.rowPx){
+    for(var r=-s.rows; r<=s.rows; r++){
+      var y=s.axisPx-r*s.rowPx;
+      ctx.fillStyle = r===0 ? '#7cc4e6' : (r%5===0 ? '#cfe9f6' : '#e8f4fb');
+      ctx.fillRect(0, y-(r===0?1:0.5)/sc, w, (r===0?2:1)/sc);
+    }
+  }
+  ctx.fillStyle='#eef1f5';
+  for(var f=1;f<N;f++) ctx.fillRect(f*A.ppf-0.5/sc,0,1/sc,H);
+  var rv=A.ytReveal, upto=rv?A.clamp(rv.upto,0,N):N, rad=5.5/sc;
+  A.lines.forEach(function(L,li){
+    ctx.fillStyle=A.LINE_DARK[li]; ctx.strokeStyle='#fff'; ctx.lineWidth=1.5/sc;
+    for(var f=0;f<upto;f++){
+      var y=Y.pointY(f,L.x); if(y==null) continue;
+      ctx.beginPath(); ctx.arc((f+0.5)*A.ppf, y, rad, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    }
+  });
+  A.$('#ytInfo').textContent = A.lines.length ? '' : '左の図をタップして線を置くと、ここに記録されます';
+  Y.renderOv();
+}
+
+/* ---------- 吸着（スマホで線や点を置きやすくする） ---------- */
+/* 動画：どの列に「動くもの」が多いか（コマ間の明るさの変化の合計）を1回だけ数えておく */
+function energy(){
+  var s=A.src; if(s._energyFor===s.frames) return s._energy;
+  var W=s.W, H=s.H, N=s.frames.length, step=Math.max(1,Math.floor(N/40)), idx=[], i, x, y, f;
+  for(f=0;f<N;f+=step) idx.push(f);
+  var mean=new Float32Array(W*H);
+  idx.forEach(function(f){ var d=s.frames[f].data; for(i=0;i<W*H;i++) mean[i]+=0.299*d[i*4]+0.587*d[i*4+1]+0.114*d[i*4+2]; });
+  for(i=0;i<W*H;i++) mean[i]/=idx.length;
+  var e=new Float32Array(W);
+  idx.forEach(function(f){ var d=s.frames[f].data;
+    for(y=0;y<H;y++) for(x=0;x<W;x++){ i=y*W+x; e[x]+=Math.abs(0.299*d[i*4]+0.587*d[i*4+1]+0.114*d[i*4+2]-mean[i]); } });
+  var sm=new Float32Array(W);
+  for(x=0;x<W;x++) sm[x]=(e[Math.max(0,x-1)]+2*e[x]+e[Math.min(W-1,x+1)])/4;
+  s._energy=sm; s._energyFor=s.frames;
+  return sm;
+}
+/* 位置線の x を吸着させる：ぱらぱら漫画は方眼の縦線、動画は近くの「よく動く列」 */
+Y.snapX = function(x){
+  var s=A.src; if(!s||!A.snap) return x;
+  var tol=16/A.view.s;
+  if(s.colPx){
+    var c=A.clamp(Math.round(x/s.colPx)*s.colPx, 0, s.W-1);
+    return Math.abs(c-x)<=tol ? c : x;
+  }
+  var e=energy(), rr=Math.max(2,Math.round(Math.min(tol,8))), x0=Math.round(x), best=x0, bv=-1, sum=0, n=0;
+  for(var k=Math.max(0,x0-rr); k<=Math.min(s.W-1,x0+rr); k++){ sum+=e[k]; n++; if(e[k]>bv){ bv=e[k]; best=k; } }
+  return (n && bv>1.25*sum/n) ? best : x;
+};
+/* 列の中の「目印」の高さの候補：動画は背景と違う明るさの山、ぱらぱら漫画は赤い線 */
+Y.peaks = function(f, x){
+  var s=A.src, H=s.H, a=new Uint8ClampedArray(H*3), out=[], j;
+  A.column(f, x, Math.max(3,A.band), a, 0);
+  if(s.kind==='flip'){
+    var sy=0, sw=0;
+    for(j=0;j<=H;j++){
+      var rd = j<H ? a[j*3]-(a[j*3+1]+a[j*3+2])/2 : 0;
+      if(rd>60){ sy+=j*rd; sw+=rd; }
+      else if(sw>0){ out.push(sy/sw); sy=0; sw=0; }
+    }
+    return out;
+  }
+  var lum=[], srt, med, sal=[];
+  for(j=0;j<H;j++) lum.push(0.299*a[j*3]+0.587*a[j*3+1]+0.114*a[j*3+2]);
+  srt=lum.slice().sort(function(p,q){return p-q;}); med=srt[H>>1];
+  for(j=0;j<H;j++) sal.push(Math.abs((lum[Math.max(0,j-1)]+2*lum[j]+lum[Math.min(H-1,j+1)])/4-med));
+  for(j=1;j<H-1;j++){
+    if(sal[j]<=28 || sal[j]<sal[j-1] || sal[j]<sal[j+1]) continue;
+    var cy=0, cw=0;
+    for(var q=Math.max(0,j-3); q<=Math.min(H-1,j+3); q++){ var wv=Math.max(0,sal[q]-sal[j]*0.3); cy+=q*wv; cw+=wv; }
+    var py=cw>0?cy/cw:j;
+    if(!out.length || py-out[out.length-1]>4) out.push(py);
+  }
+  return out;
+};
+/* 打った点の y を、近くの目印に吸い付ける（tol は元画像の画素） */
+Y.snapY = function(f, x, y, tol){
+  if(!A.snap || !A.src) return y;
+  var best=y, bd=tol;
+  Y.peaks(f,x).forEach(function(p){ var d=Math.abs(p-y); if(d<bd){ bd=d; best=p; } });
+  return best;
 };
 
 /* 時間の目盛りとカーソル */

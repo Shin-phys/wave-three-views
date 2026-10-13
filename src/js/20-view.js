@@ -44,6 +44,11 @@ V.layout = function(){
   sizeCanvas(cvV, V.cssW, V.dispH, V.crop.w, s.H);
   sizeCanvas(cvVO, V.cssW, V.dispH, Math.round(V.cssW*d), Math.round(V.dispH*d));
   A.$('#vidPane').style.width=V.cssW+'px';
+  // ぱらぱら漫画は、y-t図が1周期ぶん横に収まるように1コマの幅を合わせる（手で変えたらそのまま）
+  if(s.kind==='flip' && !s.ppfManual){
+    A.ppf=Math.max(16, Math.floor((A.$('#ytPane').clientWidth-4)/(V.s*A.N())));
+    if(A.tools) A.tools.refresh();
+  }
   A.emit('layout');
   V.render();
 };
@@ -113,9 +118,9 @@ function onDown(e){
   var i=nearestLine(p.cx);
   if(i<0){
     if(A.lines.length>=A.maxLines){
-      if(A.maxLines===1){ A.lines[0].x=p.x; i=0; }
+      if(A.maxLines===1){ A.lines[0].x=A.yt.snapX(p.x); i=0; }
       else { A.toast('線は'+A.maxLines+'本までです。ドラッグで動かすか、「調べる」で消してください'); return; }
-    } else { A.lines.push({x:p.x}); i=A.lines.length-1; }
+    } else { A.lines.push({x:A.yt.snapX(p.x)}); i=A.lines.length-1; }
     emitLines();
   }
   drag={i:i};
@@ -126,7 +131,7 @@ function onMove(e){
   var p=evPos(e);
   if(A.tool && A.tool.vidMove){ A.tool.vidMove(p,e); V.renderOv(); return; }
   if(!drag) return;
-  A.lines[drag.i].x=p.x; emitLines();
+  A.lines[drag.i].x=A.yt.snapX(p.x); emitLines();
 }
 function onUp(e){
   if(A.tool && A.tool.vidUp){ A.tool.vidUp(evPos(e),e); V.renderOv(); }
@@ -169,6 +174,11 @@ A.stop = function(){
   var b=A.$('#btnPlay'); if(b){ b.textContent='▶'; b.setAttribute('aria-label','再生'); }
 };
 A.isPlaying = function(){ return playing; };
+/* 最初のコマにもどる（y-t図も左端へ） */
+A.toStart = function(){
+  A.stop(); A.cur=-1; A.goto(0);
+  var w=A.$('#ytWrap'); if(w) w.scrollLeft=0;
+};
 
 V.init = function(){
   cvV=A.$('#cvVid'); cvVO=A.$('#cvVidOv');
@@ -181,6 +191,7 @@ V.init = function(){
 
   A.$('#btnPlay').addEventListener('click',function(){ playing?A.stop():A.play(); });
   A.$('#btnPrev').addEventListener('click',function(){ A.stop(); A.goto(A.cur-1); });
+  A.$('#btnFirst').addEventListener('click',function(){ A.toStart(); });
   A.$('#btnNext').addEventListener('click',function(){ A.stop(); A.goto(A.cur+1); });
   A.$('#rngT').addEventListener('input',function(){ A.stop(); A.goto(parseInt(this.value,10)); });
   document.addEventListener('keydown',function(e){
@@ -190,6 +201,7 @@ V.init = function(){
     if(e.key==='ArrowLeft'){ A.stop(); A.goto(A.cur-1); e.preventDefault(); }
     else if(e.key==='ArrowRight'){ A.stop(); A.goto(A.cur+1); e.preventDefault(); }
     else if(e.key===' '&&tg!=='BUTTON'){ playing?A.stop():A.play(); e.preventDefault(); }
+    else if(e.key==='Home'){ A.toStart(); e.preventDefault(); }
   });
 
   A.on('source',function(s){

@@ -16,7 +16,7 @@
   <button class="btn sm" id="btnPanel" aria-expanded="true" title="設定欄を畳む／開く">設定欄を畳む</button>
 </header>
 
-<div class="rotate-note hidden" id="rotateNote">スマホを横向きにすると、動画とグラフを大きく並べられます。</div>
+<div class="rotate-note hidden" id="rotateNote">スマホを横向きにすると、y-x図とy-t図を大きく並べられます。</div>
 
 <main id="main">
 
@@ -44,6 +44,7 @@
     </div>
 
     <div id="transport" class="transport hidden">
+      <button class="btn icon" id="btnFirst" title="最初のコマにもどる（Home）" aria-label="最初のコマにもどる">⏮</button>
       <button class="btn icon" id="btnPrev" title="1コマもどる（←）" aria-label="1コマもどる">◀</button>
       <button class="btn icon primary" id="btnPlay" title="再生／停止（スペース）" aria-label="再生">▶</button>
       <button class="btn icon" id="btnNext" title="1コマすすむ（→）" aria-label="1コマすすむ">▶▏</button>
@@ -106,7 +107,7 @@
         <li data-step="1">1か所を選ぶ</li>
         <li data-step="2">点を打って続きを予想する</li>
         <li data-step="3">記録する</li>
-        <li data-step="4">グラフから動画へ</li>
+        <li data-step="4">y-t図からy-x図へ</li>
       </ol>
       <div class="guidebody" id="guideBody"></div>
       <div class="row guidenav">
@@ -119,10 +120,12 @@
     <!-- 調べる -->
     <div class="tabpane hidden" data-pane="tools">
       <h3>位置線</h3>
-      <p class="mut small">動画をタップすると縦の線が置かれます（2本まで）。線はドラッグで動かせます。</p>
+      <p class="mut small">左のy-x図をタップすると縦の線が置かれます（2本まで）。線はドラッグで動かせます。</p>
       <div class="row">
         <button class="btn sm" id="btnClearLines">線をすべて消す</button>
       </div>
+      <div class="row small"><label><input type="checkbox" id="chkSnap" checked> 線と点を目印に吸い付ける</label></div>
+      <p class="mut small">動画では玉の位置に、ぱらぱら漫画では方眼の縦線に、線が吸い付きます。打った点は、近くの玉（赤い線）に吸い付きます。</p>
       <div class="row"><span class="small lbl">線の幅</span><input type="range" id="rngBand" min="1" max="15" value="3"><span class="small" id="bandLabel">3</span></div>
 
       <h3>y-t図の横軸</h3>
