@@ -48,11 +48,11 @@ var guideTool = {
     A.yt.renderOv();
   },
   ytDown:function(p){
-    if(G.step!==2 || !G.predMode) return;
+    if(G.step!==2 || !G.predMode) return false;
     predDrawing=true;
     addPred(p);
   },
-  ytMove:function(p){ if(predDrawing) addPred(p); },
+  ytMove:function(p){ if(!predDrawing) return false; addPred(p); },
   ytUp:function(){ predDrawing=false; },
   drawVid:function(ctx,V){
     if(!A.lines.length) return;
@@ -262,6 +262,7 @@ function render(){
     if(!G.recorded) A.ytReveal={upto:0};
   } else {
     body('<p>右の<b>y-t図</b>をタップすると、左の<b>y-x図</b>がその時刻のコマに切り替わります。y-t図の山や谷をタップして、y-x図ではどんな場面か確かめましょう。</p>'+
+      '<p class="mut small">左のy-x図をタップすると、線がその場所に移り、y-t図もその場所の記録に変わります。</p>'+
       '<button class="btn" id="gLine2">もう1か所に線を置いて比べる</button>'+
       '<p class="mut small" id="gLine2Hint">2本目の線は色を変えて、同じy-t図に重ねます。</p>');
     A.$('#gLine2').addEventListener('click',function(){

@@ -279,14 +279,15 @@ function pos(e){ var r=cvO.getBoundingClientRect(); return {cx:e.clientX-r.left,
 function down(e){
   if(!A.src) return;
   var p=pos(e);
-  if(A.tool && A.tool.ytDown){ A.tool.ytDown(p,e); cv.setPointerCapture(e.pointerId); Y.renderOv(); return; }
+  // 道具が受け取らなかった（false を返した）ときは、ふつうの操作（その時刻へ移る）にする
+  if(A.tool && A.tool.ytDown && A.tool.ytDown(p,e)!==false){ cv.setPointerCapture(e.pointerId); Y.renderOv(); return; }
   if(A.ytLocked) return;
   scrub=true; cv.setPointerCapture(e.pointerId);
   A.stop(); A.goto(Math.floor(Y.c2f(p.cx)));
 }
 function move(e){
   var p=pos(e);
-  if(A.tool && A.tool.ytMove){ A.tool.ytMove(p,e); Y.renderOv(); return; }
+  if(A.tool && A.tool.ytMove && A.tool.ytMove(p,e)!==false){ Y.renderOv(); return; }
   if(scrub) A.goto(Math.floor(Y.c2f(p.cx)));
 }
 function up(e){
