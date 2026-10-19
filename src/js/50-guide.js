@@ -6,9 +6,10 @@
    ========================================================= */
 (function(A){
 'use strict';
-var G = A.guide = {active:false, step:1, dots:{}, pred:[], predMode:false, recorded:false, anim:null, pen:null, trace:[]};
+var G = A.guide = {active:false, step:1, dots:{}, pred:[], predMode:false, recorded:false, anim:null, pen:null, trace:[], showMine:true};
 A.dim = 0;
 var PEN='#6fe3c1';
+var MINE='#ff6fb5';    // 自分で打った点（y-x図・y-t図の両方で同じ色）
 
 function body(html){ A.$('#guideBody').innerHTML=html; }
 function hasSrc(){ return !!A.src; }
@@ -35,7 +36,7 @@ var guideTool = {
   vidDown:function(p){
     if(G.step!==2 || !A.lines.length) return false;
     // 近くの目印（玉・赤い線）に吸い付ける
-    G.dots[A.cur]=A.yt.snapY(A.cur, A.lines[0].x, p.y, 36/A.view.s);
+    G.dots[A.cur]={x:A.lines[0].x, y:A.yt.snapY(A.cur, A.lines[0].x, p.y, 36/A.view.s)};
     var adv=parseInt((A.$('#gAdv')||{}).value||'1',10);
     updateCounts();
     if(A.cur>=A.N()-1){
@@ -54,14 +55,7 @@ var guideTool = {
   },
   ytMove:function(p){ if(!predDrawing) return false; addPred(p); },
   ytUp:function(){ predDrawing=false; },
-  drawVid:function(ctx,V){
-    if(!A.lines.length) return;
-    var L=A.lines[0];
-    if(G.step===2 && G.dots[A.cur]!=null){
-      ctx.strokeStyle=PEN; ctx.lineWidth=2;
-      ctx.beginPath(); ctx.arc(V.sx2c(L.x),V.sy2c(G.dots[A.cur]),6,0,Math.PI*2); ctx.stroke();
-    }
-  }
+  drawVid:function(ctx,V){ drawMine(ctx,V); }
 };
 function addPred(p){
   var f=A.yt.c2f(p.cx)-0.5, y=A.yt.c2y(p.cy);
@@ -72,6 +66,16 @@ function addPred(p){
 }
 
 /* ---------- 重ね描き ---------- */
+/* 自分で打った点：そのコマを表示しているときは、どの手順でも y-x図に色を変えて残す */
+function drawMine(ctx,V){
+  if(!G.showMine) return;
+  var d=G.dots[A.cur]; if(!d) return;
+  var x=V.sx2c(d.x), y=V.sy2c(d.y);
+  ctx.fillStyle=MINE; ctx.strokeStyle='#fff'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(x,y,5.5,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle=MINE; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(x,y,10,0,Math.PI*2); ctx.stroke();
+}
 function drawVidOv(ctx,V){
   if(!G.active || !G.pen || !A.lines.length) return;
   var L=A.lines[0], x=V.sx2c(L.x), y=G.pen.y==null?null:V.sy2c(G.pen.y);
@@ -83,18 +87,21 @@ function drawVidOv(ctx,V){
 function drawYtOv(ctx,Y){
   if(!G.active) return;
   // 予想
-  if(G.pred.length>1){
+  if(G.showMine && G.pred.length>1){
     ctx.strokeStyle=PEN; ctx.globalAlpha=0.9; ctx.lineWidth=2.5; ctx.setLineDash([7,5]);
     ctx.beginPath();
     G.pred.forEach(function(q,i){ var x=Y.f2c(q.f+0.5), y=Y.y2c(q.y); if(i)ctx.lineTo(x,y); else ctx.moveTo(x,y); });
     ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=1;
   }
-  // 打った点
-  ctx.fillStyle=PEN; ctx.strokeStyle='#06121f'; ctx.lineWidth=1.5;
-  Object.keys(G.dots).forEach(function(k){
-    var x=Y.f2c(+k+0.5), y=Y.y2c(G.dots[k]);
-    ctx.beginPath(); ctx.arc(x,y,4.5,0,Math.PI*2); ctx.fill(); ctx.stroke();
-  });
+  // 打った点（いま表示しているコマの点は輪で強調）
+  if(G.showMine){
+    Object.keys(G.dots).forEach(function(k){
+      var x=Y.f2c(+k+0.5), y=Y.y2c(G.dots[k].y);
+      ctx.fillStyle=MINE; ctx.strokeStyle='#fff'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.arc(x,y,4.5,0,Math.PI*2); ctx.fill(); ctx.stroke();
+      if(+k===A.cur){ ctx.strokeStyle=MINE; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(x,y,9,0,Math.PI*2); ctx.stroke(); }
+    });
+  }
   // ペンの跡とガイド線（段階2）
   if(G.trace.length && A.src.kind==='flip'){
     // ぱらぱら漫画は点で記録する
@@ -189,6 +196,22 @@ async function record(){
   }
   finishRecord();
 }
+/* 手順4：線を置き直したら、その場所の y-t図を左から描く */
+var sweepTok=null;
+function sweep(){
+  if(sweepTok) sweepTok.cancel=true;
+  var tok=sweepTok={cancel:false}, N=A.N(), t0=performance.now();
+  var dur=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : 900;
+  var w=A.$('#ytWrap'); w.scrollLeft=0;
+  (function step(now){
+    if(tok.cancel) return;
+    var k=Math.min(N, Math.ceil(N*(now-t0)/dur));
+    A.ytReveal={upto:k, group:1}; A.yt.renderBase(); A.yt.follow(Math.max(0,k-1));
+    if(k<N) requestAnimationFrame(step);
+    else { A.ytReveal=null; A.yt.renderBase(); sweepTok=null; }
+  })(t0);
+}
+
 function finishRecord(){
   G.anim=null; G.pen=null; G.trace=[];
   A.ytReveal=null; A.yt.renderBase();
@@ -237,7 +260,7 @@ function render(){
   } else if(G.step===2){
     var flip=A.src.unit==='T';
     var obj=flip?'赤い線':'媒質の点';
-    body('<p>◀ ▶ でコマを送りながら、線の上で'+obj+'がある高さを、左の<b>y-x図</b>でタップしましょう。右の<b>y-t図</b>に点が打たれます。最後のコマまで打つと、最初のコマにもどります。</p>'+
+    body('<p>◀ ▶ でコマを送りながら、線の上で'+obj+'がある高さを、左の<b>y-x図</b>でタップしましょう。右の<b>y-t図</b>に点が打たれます。打った点は色を変えて残ります。最後のコマまで打つと、最初のコマにもどります。</p>'+
       '<div class="row small"><label><input type="checkbox" id="gSnap"'+(A.snap?' checked':'')+'> 打った点を近くの'+(flip?'赤い線':'玉')+'に吸い付ける</label></div>'+
       '<div class="row small"><label>タップするたびに <select id="gAdv">'+
       [1,2,3,5,10].map(function(n){return '<option value="'+n+'"'+((flip?n===1:n===3)?' selected':'')+'>'+n+'</option>';}).join('')+
@@ -261,10 +284,12 @@ function render(){
     A.$('#gSkip').addEventListener('click',function(){ cancelAnim(); G.trace=[]; finishRecord(); });
     if(!G.recorded) A.ytReveal={upto:0};
   } else {
-    body('<p>右の<b>y-t図</b>をタップすると、左の<b>y-x図</b>がその時刻のコマに切り替わります。y-t図の山や谷をタップして、y-x図ではどんな場面か確かめましょう。</p>'+
-      '<p class="mut small">左のy-x図をタップすると、線がその場所に移り、y-t図もその場所の記録に変わります。</p>'+
+    body('<p>左の<b>y-x図</b>をタップすると、線がその場所に移り、その場所の<b>y-t図</b>が描かれます。いろいろな場所で試して、y-t図を比べましょう。</p>'+
       '<button class="btn" id="gLine2">もう1か所に線を置いて比べる</button>'+
-      '<p class="mut small" id="gLine2Hint">2本目の線は色を変えて、同じy-t図に重ねます。</p>');
+      '<p class="mut small" id="gLine2Hint">2本目の線は色を変えて、同じy-t図に重ねます。</p>'+
+      '<div class="row small"><label><input type="checkbox" id="gMine"'+(G.showMine?' checked':'')+'> 自分で打った点と予想を表示</label></div>'+
+      '<p class="mut small" style="margin-top:14px">右のy-t図をタップすると、左のy-x図がその時刻のコマに切り替わります。</p>');
+    A.$('#gMine').addEventListener('change',function(){ G.showMine=this.checked; A.yt.renderOv(); A.view.renderOv(); });
     A.$('#gLine2').addEventListener('click',function(){
       A.maxLines=2; this.disabled=true;
       setDim(false);
@@ -280,6 +305,7 @@ G.go = function(step){
   cancelAnim();
   G.step=A.clamp(step,1,4);
   if(G.step!==2) G.predMode=false;
+  G.showMine = G.step!==4;      // 手順4では、自分で打った点と予想は最初は隠す
   if(A.src) A.toStart();
   render();
 };
@@ -301,6 +327,8 @@ G.leave = function(){
 };
 G.reset = function(){
   cancelAnim();
+  if(sweepTok){ sweepTok.cancel=true; sweepTok=null; }
+  G.showMine=true;
   G.step=1; G.dots={}; G.pred=[]; G.trace=[]; G.recorded=false; G.predMode=false;
   dimTarget=0; A.dim=0;
 };
@@ -319,7 +347,13 @@ G.init = function(){
     var b=A.$('#gDim'); if(b) b.disabled=!A.lines.length;
     // 線を動かしたら、記録はやり直し
     if(A.lines.length && G.recorded && G.step<4){ G.recorded=false; G.trace=[]; A.ytReveal={upto:0}; A.yt.renderBase(); setNav(); }
+    // 手順4：動かしているあいだは y-t図を空にし、指を離したら描く
+    if(G.step===4){ if(sweepTok) sweepTok.cancel=true; A.ytReveal={upto:0}; A.yt.renderBase(); }
   });
+  // 線の更新（requestAnimationFrame で遅れて届く）より後に描きはじめる
+  A.on('lines-done',function(){ if(G.active && G.step===4 && A.lines.length) setTimeout(sweep,60); });
+  // 使う区間を変えたら、打った点と記録はやり直し
+  A.on('trim',function(){ var st=G.step; G.reset(); if(G.active){ G.step=Math.min(st,3); render(); } });
   A.on('source',function(){ G.reset(); if(G.active) render(); });
   A.on('tab',function(t){ if(t==='guide') G.enter(); else G.leave(); });
 };
