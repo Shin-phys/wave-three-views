@@ -35,7 +35,7 @@ var DEFS = [
     make:function(){
       var lam=160, T=2, Am=26;
       this.v=lam/T/PXM;
-      return render(function(x,t){ return Am*Math.sin(2*Math.PI*(x/lam - t/T)); }, 6);
+      return render(function(x,t){ return Am*Math.sin(2*Math.PI*(x/lam - t/T)); }, 2*T);   // 2周期ぶん
     }},
   { id:'pulse', name:'サンプル2：1つだけ伝わる山（前と後ろで形がちがう）', v:null,
     make:function(){

@@ -28,6 +28,7 @@ V.layout = function(){
   V.narrow = window.innerWidth<700 && window.innerHeight>window.innerWidth;
   A.show('#rotateNote', V.narrow);
   A.show('#vidInfo', !V.narrow);
+  A.$('#vidInfo').textContent = s.kind==='flip' ? '' : (s.W+'×'+s.H+'・'+s.frames.length+'コマ');
   A.$('#vidTitle').textContent = V.narrow ? 'y-x図' : (s.kind==='flip' ? 'y-x図（作図の1コマ）' : 'y-x図（動画の1コマ）');
   // 縦持ちでは位置線のまわりだけを細く切り抜く（WAVE-N-12）
   if(V.narrow && A.lines.length){
@@ -44,13 +45,19 @@ V.layout = function(){
   sizeCanvas(cvV, V.cssW, V.dispH, V.crop.w, s.H);
   sizeCanvas(cvVO, V.cssW, V.dispH, Math.round(V.cssW*d), Math.round(V.dispH*d));
   A.$('#vidPane').style.width=V.cssW+'px';
-  // ぱらぱら漫画は、y-t図が1周期ぶん横に収まるように1コマの幅を合わせる（手で変えたらそのまま）
-  if(s.kind==='flip' && !s.ppfManual){
-    A.ppf=Math.max(16, Math.floor((A.$('#ytPane').clientWidth-4)/(V.s*A.N())));
-    if(A.tools) A.tools.refresh();
-  }
+  // y-t図が全体（ぱらぱら漫画は1周期）ちょうど横幅に収まるように、1コマの幅を合わせる。
+  // 「1コマの幅」や「y-x図と同じ縮尺」で手で変えたら、そのままにする
+  if(!s.ppfManual) V.fitYt();
   A.emit('layout');
   V.render();
+};
+
+V.fitYt = function(){
+  var s=A.src; if(!s) return;
+  var avail=Math.max(60, A.$('#ytPane').clientWidth-4);
+  var p=avail/(V.s*A.N());
+  A.ppf = s.kind==='flip' ? Math.max(16, Math.floor(p)) : A.clamp(Math.floor(p*10)/10, 0.2, 60);
+  if(A.tools) A.tools.refresh();
 };
 
 /* ---------- 描画 ---------- */

@@ -129,7 +129,8 @@
       <div class="row"><span class="small lbl">線の幅</span><input type="range" id="rngBand" min="1" max="15" value="3"><span class="small" id="bandLabel">3</span></div>
 
       <h3>y-t図の横軸</h3>
-      <div class="row"><span class="small lbl">1コマの幅</span><input type="range" id="rngPpf" min="1" max="120" value="2" step="1"><span class="small" id="ppfLabel">2</span></div>
+      <div class="row"><span class="small lbl">1コマの幅</span><input type="range" id="rngPpf" min="0.2" max="60" value="2" step="0.1"><span class="small" id="ppfLabel">2</span></div>
+      <div class="row small"><button class="btn sm" id="btnFit">全体を横幅に収める</button></div>
       <div class="row small">
         <label>波の速さ <input type="number" id="inpV" min="0" step="0.01" class="num"> m/s</label>
         <button class="btn sm" id="btnMatch">y-x図と同じ縮尺にする</button>
@@ -147,6 +148,13 @@
         <button class="btn sm" id="btnTilt">止まっている媒質の2点をタップ</button>
         <span id="tiltLabel" class="mut">0°</span>
       </div>
+
+      <h3>使う区間</h3>
+      <p class="mut small">動画やサンプルのうち、y-t図に使う区間を決めます。短くすると y-t図が見やすくなります。</p>
+      <div class="row"><span class="small lbl">はじめ</span><input type="range" id="rngTrimA" min="0" max="1" value="0" step="1"></div>
+      <div class="row"><span class="small lbl">おわり</span><input type="range" id="rngTrimB" min="0" max="1" value="1" step="1"></div>
+      <div class="row small"><span id="trimLabel" class="mut grow"></span></div>
+      <div class="row"><button class="btn sm primary" id="btnTrim">この区間にする</button><button class="btn sm" id="btnTrimReset">元の長さにもどす</button></div>
 
       <h3>時間</h3>
       <div class="row small">

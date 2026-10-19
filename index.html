@@ -281,7 +281,7 @@ details.teacher summary{cursor:pointer;color:var(--mut);font-size:.9rem;min-heig
         <li data-step="1">1か所を選ぶ</li>
         <li data-step="2">点を打って続きを予想する</li>
         <li data-step="3">記録する</li>
-        <li data-step="4">y-t図からy-x図へ</li>
+        <li data-step="4">場所を変えて調べる</li>
       </ol>
       <div class="guidebody" id="guideBody"></div>
       <div class="row guidenav">
@@ -303,7 +303,8 @@ details.teacher summary{cursor:pointer;color:var(--mut);font-size:.9rem;min-heig
       <div class="row"><span class="small lbl">線の幅</span><input type="range" id="rngBand" min="1" max="15" value="3"><span class="small" id="bandLabel">3</span></div>
 
       <h3>y-t図の横軸</h3>
-      <div class="row"><span class="small lbl">1コマの幅</span><input type="range" id="rngPpf" min="1" max="120" value="2" step="1"><span class="small" id="ppfLabel">2</span></div>
+      <div class="row"><span class="small lbl">1コマの幅</span><input type="range" id="rngPpf" min="0.2" max="60" value="2" step="0.1"><span class="small" id="ppfLabel">2</span></div>
+      <div class="row small"><button class="btn sm" id="btnFit">全体を横幅に収める</button></div>
       <div class="row small">
         <label>波の速さ <input type="number" id="inpV" min="0" step="0.01" class="num"> m/s</label>
         <button class="btn sm" id="btnMatch">y-x図と同じ縮尺にする</button>
@@ -321,6 +322,13 @@ details.teacher summary{cursor:pointer;color:var(--mut);font-size:.9rem;min-heig
         <button class="btn sm" id="btnTilt">止まっている媒質の2点をタップ</button>
         <span id="tiltLabel" class="mut">0°</span>
       </div>
+
+      <h3>使う区間</h3>
+      <p class="mut small">動画やサンプルのうち、y-t図に使う区間を決めます。短くすると y-t図が見やすくなります。</p>
+      <div class="row"><span class="small lbl">はじめ</span><input type="range" id="rngTrimA" min="0" max="1" value="0" step="1"></div>
+      <div class="row"><span class="small lbl">おわり</span><input type="range" id="rngTrimB" min="0" max="1" value="1" step="1"></div>
+      <div class="row small"><span id="trimLabel" class="mut grow"></span></div>
+      <div class="row"><button class="btn sm primary" id="btnTrim">この区間にする</button><button class="btn sm" id="btnTrimReset">元の長さにもどす</button></div>
 
       <h3>時間</h3>
       <div class="row small">
@@ -2002,7 +2010,7 @@ var DEFS = [
     make:function(){
       var lam=160, T=2, Am=26;
       this.v=lam/T/PXM;
-      return render(function(x,t){ return Am*Math.sin(2*Math.PI*(x/lam - t/T)); }, 6);
+      return render(function(x,t){ return Am*Math.sin(2*Math.PI*(x/lam - t/T)); }, 2*T);   // 2周期ぶん
     }},
   { id:'pulse', name:'サンプル2：1つだけ伝わる山（前と後ろで形がちがう）', v:null,
     make:function(){
@@ -2100,6 +2108,7 @@ V.layout = function(){
   V.narrow = window.innerWidth<700 && window.innerHeight>window.innerWidth;
   A.show('#rotateNote', V.narrow);
   A.show('#vidInfo', !V.narrow);
+  A.$('#vidInfo').textContent = s.kind==='flip' ? '' : (s.W+'×'+s.H+'・'+s.frames.length+'コマ');
   A.$('#vidTitle').textContent = V.narrow ? 'y-x図' : (s.kind==='flip' ? 'y-x図（作図の1コマ）' : 'y-x図（動画の1コマ）');
   // 縦持ちでは位置線のまわりだけを細く切り抜く（WAVE-N-12）
   if(V.narrow && A.lines.length){
@@ -2116,13 +2125,19 @@ V.layout = function(){
   sizeCanvas(cvV, V.cssW, V.dispH, V.crop.w, s.H);
   sizeCanvas(cvVO, V.cssW, V.dispH, Math.round(V.cssW*d), Math.round(V.dispH*d));
   A.$('#vidPane').style.width=V.cssW+'px';
-  // ぱらぱら漫画は、y-t図が1周期ぶん横に収まるように1コマの幅を合わせる（手で変えたらそのまま）
-  if(s.kind==='flip' && !s.ppfManual){
-    A.ppf=Math.max(16, Math.floor((A.$('#ytPane').clientWidth-4)/(V.s*A.N())));
-    if(A.tools) A.tools.refresh();
-  }
+  // y-t図が全体（ぱらぱら漫画は1周期）ちょうど横幅に収まるように、1コマの幅を合わせる。
+  // 「1コマの幅」や「y-x図と同じ縮尺」で手で変えたら、そのままにする
+  if(!s.ppfManual) V.fitYt();
   A.emit('layout');
   V.render();
+};
+
+V.fitYt = function(){
+  var s=A.src; if(!s) return;
+  var avail=Math.max(60, A.$('#ytPane').clientWidth-4);
+  var p=avail/(V.s*A.N());
+  A.ppf = s.kind==='flip' ? Math.max(16, Math.floor(p)) : A.clamp(Math.floor(p*10)/10, 0.2, 60);
+  if(A.tools) A.tools.refresh();
 };
 
 /* ---------- 描画 ---------- */
@@ -2680,13 +2695,71 @@ function matchScale(){
   if(!s.pxPerM){ A.toast('先に「長さの目盛り」を決めてください'); return; }
   A.ppf = v*s.pxPerM*A.dtReal();
   A.ppf = A.clamp(A.ppf, 0.2, 60);
+  s.ppfManual=true;
   T.refresh(); A.view.layout();
+}
+
+/* ---------- 使う区間（動画・サンプル） ---------- */
+/* 元のコマは s.full に残し、frames を切り出したものに差し替える */
+function fullOf(s){ return s.full || {frames:s.frames, times:s.times, off:0}; }
+function trimUI(){
+  var s=A.src, ok=!!s && s.kind!=='flip';
+  ['rngTrimA','rngTrimB','btnTrim','btnTrimReset'].forEach(function(id){ A.$('#'+id).disabled=!ok; });
+  if(!ok){ A.$('#trimLabel').textContent = s ? '（ぱらぱら漫画では使いません）' : ''; return; }
+  var F=fullOf(s), n=F.frames.length, a=F.off||0, b=a+s.frames.length-1;
+  var ra=A.$('#rngTrimA'), rb=A.$('#rngTrimB');
+  ra.max=rb.max=n-1;
+  if(!ra.dataset.busy){ ra.value=a; rb.value=b; }
+  trimLabel();
+  A.$('#btnTrimReset').disabled = !s.full;
+}
+function tOfFull(i){
+  var s=A.src, F=fullOf(s);
+  var t = F.times ? (F.times[i]-F.times[0]) : i/s.fps;
+  return t*(s.slow||1);
+}
+function trimLabel(){
+  var a=+A.$('#rngTrimA').value, b=+A.$('#rngTrimB').value;
+  A.$('#trimLabel').textContent = tOfFull(a).toFixed(2)+' 〜 '+tOfFull(b).toFixed(2)+' 秒（'+(b-a+1)+' コマ）';
+}
+/* つまみを動かすあいだは、元の動画のそのコマを見せる */
+function trimMove(which){
+  var s=A.src; if(!s||s.kind==='flip') return;
+  var ra=A.$('#rngTrimA'), rb=A.$('#rngTrimB'), a=+ra.value, b=+rb.value;
+  if(which==='a' && a>b-4){ a=Math.max(0,b-4); ra.value=a; }
+  if(which==='b' && b<a+4){ b=Math.min(+rb.max,a+4); rb.value=b; }
+  trimLabel();
+  var F=fullOf(s), off=F.off||0, idx=(which==='a'?a:b)-off;
+  if(idx>=0 && idx<s.frames.length){ A.stop(); A.goto(idx); }
+}
+function applyTrim(){
+  var s=A.src; if(!s||s.kind==='flip') return;
+  var F=fullOf(s), a=+A.$('#rngTrimA').value, b=+A.$('#rngTrimB').value;
+  if(!s.full) s.full={frames:s.frames, times:s.times, off:0};
+  s.full.off=a;
+  s.ppfManual=false;
+  A.stop();
+  A.replaceFrames(F.frames.slice(a,b+1), {times: F.times ? F.times.slice(a,b+1) : null});
+  A.emit('trim');
+  A.toStart();
+  T.refresh();
+  A.toast((b-a+1)+' コマの区間にしました');
+}
+function resetTrim(){
+  var s=A.src; if(!s||!s.full) return;
+  var F=s.full; s.full=null; s.ppfManual=false;
+  A.stop();
+  A.replaceFrames(F.frames, {times:F.times});
+  A.emit('trim');
+  A.toStart();
+  T.refresh();
 }
 
 T.refresh = function(){
   var s=A.src;
   A.$('#rngBand').value=A.band; A.$('#bandLabel').textContent=A.band;
-  A.$('#rngPpf').value=Math.round(A.ppf); A.$('#ppfLabel').textContent=(Math.round(A.ppf*100)/100);
+  A.$('#rngPpf').value=A.ppf; A.$('#ppfLabel').textContent=(Math.round(A.ppf*100)/100);
+  trimUI();
   if(!s) return;
   var isT=s.unit==='T';
   A.$('#scaleLabel').textContent = s.pxPerM ? ('1 cm = '+(s.pxPerM/100).toFixed(2)+' 画素') : '未設定';
@@ -2715,7 +2788,12 @@ T.init = function(){
   A.$('#btnMatch').addEventListener('click',matchScale);
   A.$('#btnClearLines').addEventListener('click',function(){ A.lines=[]; A.emit('lines'); });
   A.$('#rngBand').addEventListener('input',function(){ A.band=parseInt(this.value,10); A.$('#bandLabel').textContent=A.band; A.emit('lines'); });
-  A.$('#rngPpf').addEventListener('input',function(){ if(A.src) A.src.ppfManual=true; A.ppf=parseInt(this.value,10); A.$('#ppfLabel').textContent=A.ppf; A.view.layout(); });
+  A.$('#rngPpf').addEventListener('input',function(){ if(A.src) A.src.ppfManual=true; A.ppf=parseFloat(this.value); A.$('#ppfLabel').textContent=A.ppf; A.view.layout(); });
+  A.$('#btnFit').addEventListener('click',function(){ if(!A.src) return; A.src.ppfManual=false; A.view.layout(); });
+  A.$('#rngTrimA').addEventListener('input',function(){ trimMove('a'); });
+  A.$('#rngTrimB').addEventListener('input',function(){ trimMove('b'); });
+  A.$('#btnTrim').addEventListener('click',applyTrim);
+  A.$('#btnTrimReset').addEventListener('click',resetTrim);
   A.$('#inpFps').addEventListener('change',function(){
     var s=A.src, v=parseFloat(this.value); if(!s||!(v>0)) return;
     s.fps=v; s.times=null; s.fpsAuto=false; T.refresh(); A.emit('frame'); A.yt.renderOv();
@@ -2740,9 +2818,10 @@ T.init = function(){
    ========================================================= */
 (function(A){
 'use strict';
-var G = A.guide = {active:false, step:1, dots:{}, pred:[], predMode:false, recorded:false, anim:null, pen:null, trace:[]};
+var G = A.guide = {active:false, step:1, dots:{}, pred:[], predMode:false, recorded:false, anim:null, pen:null, trace:[], showMine:true};
 A.dim = 0;
 var PEN='#6fe3c1';
+var MINE='#ff6fb5';    // 自分で打った点（y-x図・y-t図の両方で同じ色）
 
 function body(html){ A.$('#guideBody').innerHTML=html; }
 function hasSrc(){ return !!A.src; }
@@ -2769,7 +2848,7 @@ var guideTool = {
   vidDown:function(p){
     if(G.step!==2 || !A.lines.length) return false;
     // 近くの目印（玉・赤い線）に吸い付ける
-    G.dots[A.cur]=A.yt.snapY(A.cur, A.lines[0].x, p.y, 36/A.view.s);
+    G.dots[A.cur]={x:A.lines[0].x, y:A.yt.snapY(A.cur, A.lines[0].x, p.y, 36/A.view.s)};
     var adv=parseInt((A.$('#gAdv')||{}).value||'1',10);
     updateCounts();
     if(A.cur>=A.N()-1){
@@ -2788,14 +2867,7 @@ var guideTool = {
   },
   ytMove:function(p){ if(!predDrawing) return false; addPred(p); },
   ytUp:function(){ predDrawing=false; },
-  drawVid:function(ctx,V){
-    if(!A.lines.length) return;
-    var L=A.lines[0];
-    if(G.step===2 && G.dots[A.cur]!=null){
-      ctx.strokeStyle=PEN; ctx.lineWidth=2;
-      ctx.beginPath(); ctx.arc(V.sx2c(L.x),V.sy2c(G.dots[A.cur]),6,0,Math.PI*2); ctx.stroke();
-    }
-  }
+  drawVid:function(ctx,V){ drawMine(ctx,V); }
 };
 function addPred(p){
   var f=A.yt.c2f(p.cx)-0.5, y=A.yt.c2y(p.cy);
@@ -2806,6 +2878,16 @@ function addPred(p){
 }
 
 /* ---------- 重ね描き ---------- */
+/* 自分で打った点：そのコマを表示しているときは、どの手順でも y-x図に色を変えて残す */
+function drawMine(ctx,V){
+  if(!G.showMine) return;
+  var d=G.dots[A.cur]; if(!d) return;
+  var x=V.sx2c(d.x), y=V.sy2c(d.y);
+  ctx.fillStyle=MINE; ctx.strokeStyle='#fff'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(x,y,5.5,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle=MINE; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(x,y,10,0,Math.PI*2); ctx.stroke();
+}
 function drawVidOv(ctx,V){
   if(!G.active || !G.pen || !A.lines.length) return;
   var L=A.lines[0], x=V.sx2c(L.x), y=G.pen.y==null?null:V.sy2c(G.pen.y);
@@ -2817,18 +2899,21 @@ function drawVidOv(ctx,V){
 function drawYtOv(ctx,Y){
   if(!G.active) return;
   // 予想
-  if(G.pred.length>1){
+  if(G.showMine && G.pred.length>1){
     ctx.strokeStyle=PEN; ctx.globalAlpha=0.9; ctx.lineWidth=2.5; ctx.setLineDash([7,5]);
     ctx.beginPath();
     G.pred.forEach(function(q,i){ var x=Y.f2c(q.f+0.5), y=Y.y2c(q.y); if(i)ctx.lineTo(x,y); else ctx.moveTo(x,y); });
     ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=1;
   }
-  // 打った点
-  ctx.fillStyle=PEN; ctx.strokeStyle='#06121f'; ctx.lineWidth=1.5;
-  Object.keys(G.dots).forEach(function(k){
-    var x=Y.f2c(+k+0.5), y=Y.y2c(G.dots[k]);
-    ctx.beginPath(); ctx.arc(x,y,4.5,0,Math.PI*2); ctx.fill(); ctx.stroke();
-  });
+  // 打った点（いま表示しているコマの点は輪で強調）
+  if(G.showMine){
+    Object.keys(G.dots).forEach(function(k){
+      var x=Y.f2c(+k+0.5), y=Y.y2c(G.dots[k].y);
+      ctx.fillStyle=MINE; ctx.strokeStyle='#fff'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.arc(x,y,4.5,0,Math.PI*2); ctx.fill(); ctx.stroke();
+      if(+k===A.cur){ ctx.strokeStyle=MINE; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(x,y,9,0,Math.PI*2); ctx.stroke(); }
+    });
+  }
   // ペンの跡とガイド線（段階2）
   if(G.trace.length && A.src.kind==='flip'){
     // ぱらぱら漫画は点で記録する
@@ -2923,6 +3008,22 @@ async function record(){
   }
   finishRecord();
 }
+/* 手順4：線を置き直したら、その場所の y-t図を左から描く */
+var sweepTok=null;
+function sweep(){
+  if(sweepTok) sweepTok.cancel=true;
+  var tok=sweepTok={cancel:false}, N=A.N(), t0=performance.now();
+  var dur=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : 900;
+  var w=A.$('#ytWrap'); w.scrollLeft=0;
+  (function step(now){
+    if(tok.cancel) return;
+    var k=Math.min(N, Math.ceil(N*(now-t0)/dur));
+    A.ytReveal={upto:k, group:1}; A.yt.renderBase(); A.yt.follow(Math.max(0,k-1));
+    if(k<N) requestAnimationFrame(step);
+    else { A.ytReveal=null; A.yt.renderBase(); sweepTok=null; }
+  })(t0);
+}
+
 function finishRecord(){
   G.anim=null; G.pen=null; G.trace=[];
   A.ytReveal=null; A.yt.renderBase();
@@ -2971,7 +3072,7 @@ function render(){
   } else if(G.step===2){
     var flip=A.src.unit==='T';
     var obj=flip?'赤い線':'媒質の点';
-    body('<p>◀ ▶ でコマを送りながら、線の上で'+obj+'がある高さを、左の<b>y-x図</b>でタップしましょう。右の<b>y-t図</b>に点が打たれます。最後のコマまで打つと、最初のコマにもどります。</p>'+
+    body('<p>◀ ▶ でコマを送りながら、線の上で'+obj+'がある高さを、左の<b>y-x図</b>でタップしましょう。右の<b>y-t図</b>に点が打たれます。打った点は色を変えて残ります。最後のコマまで打つと、最初のコマにもどります。</p>'+
       '<div class="row small"><label><input type="checkbox" id="gSnap"'+(A.snap?' checked':'')+'> 打った点を近くの'+(flip?'赤い線':'玉')+'に吸い付ける</label></div>'+
       '<div class="row small"><label>タップするたびに <select id="gAdv">'+
       [1,2,3,5,10].map(function(n){return '<option value="'+n+'"'+((flip?n===1:n===3)?' selected':'')+'>'+n+'</option>';}).join('')+
@@ -2995,10 +3096,12 @@ function render(){
     A.$('#gSkip').addEventListener('click',function(){ cancelAnim(); G.trace=[]; finishRecord(); });
     if(!G.recorded) A.ytReveal={upto:0};
   } else {
-    body('<p>右の<b>y-t図</b>をタップすると、左の<b>y-x図</b>がその時刻のコマに切り替わります。y-t図の山や谷をタップして、y-x図ではどんな場面か確かめましょう。</p>'+
-      '<p class="mut small">左のy-x図をタップすると、線がその場所に移り、y-t図もその場所の記録に変わります。</p>'+
+    body('<p>左の<b>y-x図</b>をタップすると、線がその場所に移り、その場所の<b>y-t図</b>が描かれます。いろいろな場所で試して、y-t図を比べましょう。</p>'+
       '<button class="btn" id="gLine2">もう1か所に線を置いて比べる</button>'+
-      '<p class="mut small" id="gLine2Hint">2本目の線は色を変えて、同じy-t図に重ねます。</p>');
+      '<p class="mut small" id="gLine2Hint">2本目の線は色を変えて、同じy-t図に重ねます。</p>'+
+      '<div class="row small"><label><input type="checkbox" id="gMine"'+(G.showMine?' checked':'')+'> 自分で打った点と予想を表示</label></div>'+
+      '<p class="mut small" style="margin-top:14px">右のy-t図をタップすると、左のy-x図がその時刻のコマに切り替わります。</p>');
+    A.$('#gMine').addEventListener('change',function(){ G.showMine=this.checked; A.yt.renderOv(); A.view.renderOv(); });
     A.$('#gLine2').addEventListener('click',function(){
       A.maxLines=2; this.disabled=true;
       setDim(false);
@@ -3014,6 +3117,7 @@ G.go = function(step){
   cancelAnim();
   G.step=A.clamp(step,1,4);
   if(G.step!==2) G.predMode=false;
+  G.showMine = G.step!==4;      // 手順4では、自分で打った点と予想は最初は隠す
   if(A.src) A.toStart();
   render();
 };
@@ -3035,6 +3139,8 @@ G.leave = function(){
 };
 G.reset = function(){
   cancelAnim();
+  if(sweepTok){ sweepTok.cancel=true; sweepTok=null; }
+  G.showMine=true;
   G.step=1; G.dots={}; G.pred=[]; G.trace=[]; G.recorded=false; G.predMode=false;
   dimTarget=0; A.dim=0;
 };
@@ -3053,7 +3159,13 @@ G.init = function(){
     var b=A.$('#gDim'); if(b) b.disabled=!A.lines.length;
     // 線を動かしたら、記録はやり直し
     if(A.lines.length && G.recorded && G.step<4){ G.recorded=false; G.trace=[]; A.ytReveal={upto:0}; A.yt.renderBase(); setNav(); }
+    // 手順4：動かしているあいだは y-t図を空にし、指を離したら描く
+    if(G.step===4){ if(sweepTok) sweepTok.cancel=true; A.ytReveal={upto:0}; A.yt.renderBase(); }
   });
+  // 線の更新（requestAnimationFrame で遅れて届く）より後に描きはじめる
+  A.on('lines-done',function(){ if(G.active && G.step===4 && A.lines.length) setTimeout(sweep,60); });
+  // 使う区間を変えたら、打った点と記録はやり直し
+  A.on('trim',function(){ var st=G.step; G.reset(); if(G.active){ G.step=Math.min(st,3); render(); } });
   A.on('source',function(){ G.reset(); if(G.active) render(); });
   A.on('tab',function(t){ if(t==='guide') G.enter(); else G.leave(); });
 };

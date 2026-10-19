@@ -70,13 +70,71 @@ function matchScale(){
   if(!s.pxPerM){ A.toast('先に「長さの目盛り」を決めてください'); return; }
   A.ppf = v*s.pxPerM*A.dtReal();
   A.ppf = A.clamp(A.ppf, 0.2, 60);
+  s.ppfManual=true;
   T.refresh(); A.view.layout();
+}
+
+/* ---------- 使う区間（動画・サンプル） ---------- */
+/* 元のコマは s.full に残し、frames を切り出したものに差し替える */
+function fullOf(s){ return s.full || {frames:s.frames, times:s.times, off:0}; }
+function trimUI(){
+  var s=A.src, ok=!!s && s.kind!=='flip';
+  ['rngTrimA','rngTrimB','btnTrim','btnTrimReset'].forEach(function(id){ A.$('#'+id).disabled=!ok; });
+  if(!ok){ A.$('#trimLabel').textContent = s ? '（ぱらぱら漫画では使いません）' : ''; return; }
+  var F=fullOf(s), n=F.frames.length, a=F.off||0, b=a+s.frames.length-1;
+  var ra=A.$('#rngTrimA'), rb=A.$('#rngTrimB');
+  ra.max=rb.max=n-1;
+  if(!ra.dataset.busy){ ra.value=a; rb.value=b; }
+  trimLabel();
+  A.$('#btnTrimReset').disabled = !s.full;
+}
+function tOfFull(i){
+  var s=A.src, F=fullOf(s);
+  var t = F.times ? (F.times[i]-F.times[0]) : i/s.fps;
+  return t*(s.slow||1);
+}
+function trimLabel(){
+  var a=+A.$('#rngTrimA').value, b=+A.$('#rngTrimB').value;
+  A.$('#trimLabel').textContent = tOfFull(a).toFixed(2)+' 〜 '+tOfFull(b).toFixed(2)+' 秒（'+(b-a+1)+' コマ）';
+}
+/* つまみを動かすあいだは、元の動画のそのコマを見せる */
+function trimMove(which){
+  var s=A.src; if(!s||s.kind==='flip') return;
+  var ra=A.$('#rngTrimA'), rb=A.$('#rngTrimB'), a=+ra.value, b=+rb.value;
+  if(which==='a' && a>b-4){ a=Math.max(0,b-4); ra.value=a; }
+  if(which==='b' && b<a+4){ b=Math.min(+rb.max,a+4); rb.value=b; }
+  trimLabel();
+  var F=fullOf(s), off=F.off||0, idx=(which==='a'?a:b)-off;
+  if(idx>=0 && idx<s.frames.length){ A.stop(); A.goto(idx); }
+}
+function applyTrim(){
+  var s=A.src; if(!s||s.kind==='flip') return;
+  var F=fullOf(s), a=+A.$('#rngTrimA').value, b=+A.$('#rngTrimB').value;
+  if(!s.full) s.full={frames:s.frames, times:s.times, off:0};
+  s.full.off=a;
+  s.ppfManual=false;
+  A.stop();
+  A.replaceFrames(F.frames.slice(a,b+1), {times: F.times ? F.times.slice(a,b+1) : null});
+  A.emit('trim');
+  A.toStart();
+  T.refresh();
+  A.toast((b-a+1)+' コマの区間にしました');
+}
+function resetTrim(){
+  var s=A.src; if(!s||!s.full) return;
+  var F=s.full; s.full=null; s.ppfManual=false;
+  A.stop();
+  A.replaceFrames(F.frames, {times:F.times});
+  A.emit('trim');
+  A.toStart();
+  T.refresh();
 }
 
 T.refresh = function(){
   var s=A.src;
   A.$('#rngBand').value=A.band; A.$('#bandLabel').textContent=A.band;
-  A.$('#rngPpf').value=Math.round(A.ppf); A.$('#ppfLabel').textContent=(Math.round(A.ppf*100)/100);
+  A.$('#rngPpf').value=A.ppf; A.$('#ppfLabel').textContent=(Math.round(A.ppf*100)/100);
+  trimUI();
   if(!s) return;
   var isT=s.unit==='T';
   A.$('#scaleLabel').textContent = s.pxPerM ? ('1 cm = '+(s.pxPerM/100).toFixed(2)+' 画素') : '未設定';
@@ -105,7 +163,12 @@ T.init = function(){
   A.$('#btnMatch').addEventListener('click',matchScale);
   A.$('#btnClearLines').addEventListener('click',function(){ A.lines=[]; A.emit('lines'); });
   A.$('#rngBand').addEventListener('input',function(){ A.band=parseInt(this.value,10); A.$('#bandLabel').textContent=A.band; A.emit('lines'); });
-  A.$('#rngPpf').addEventListener('input',function(){ if(A.src) A.src.ppfManual=true; A.ppf=parseInt(this.value,10); A.$('#ppfLabel').textContent=A.ppf; A.view.layout(); });
+  A.$('#rngPpf').addEventListener('input',function(){ if(A.src) A.src.ppfManual=true; A.ppf=parseFloat(this.value); A.$('#ppfLabel').textContent=A.ppf; A.view.layout(); });
+  A.$('#btnFit').addEventListener('click',function(){ if(!A.src) return; A.src.ppfManual=false; A.view.layout(); });
+  A.$('#rngTrimA').addEventListener('input',function(){ trimMove('a'); });
+  A.$('#rngTrimB').addEventListener('input',function(){ trimMove('b'); });
+  A.$('#btnTrim').addEventListener('click',applyTrim);
+  A.$('#btnTrimReset').addEventListener('click',resetTrim);
   A.$('#inpFps').addEventListener('change',function(){
     var s=A.src, v=parseFloat(this.value); if(!s||!(v>0)) return;
     s.fps=v; s.times=null; s.fpsAuto=false; T.refresh(); A.emit('frame'); A.yt.renderOv();
